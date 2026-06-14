@@ -4,7 +4,7 @@ from loguru import logger
 from tqdm import tqdm
 import typer
 
-from deposit_classification.config import MODELS_DIR, PROCESSED_DATA_DIR
+from deposit_classification.config import MODELS_DIR, PROCESSED_DATA_DIR, INTERIM_DATA_DIR
 
 app = typer.Typer()
 
@@ -12,19 +12,15 @@ app = typer.Typer()
 @app.command()
 def main(
     # ---- REPLACE DEFAULT PATHS AS APPROPRIATE ----
-    features_path: Path = PROCESSED_DATA_DIR / "test_features.csv",
+    features_path: Path = INTERIM_DATA_DIR / "xxx", # X_test
+    labels_path: Path = INTERIM_DATA_DIR / "xxx", # y_test
     model_path: Path = MODELS_DIR / "model.pkl",
-    predictions_path: Path = PROCESSED_DATA_DIR / "test_predictions.csv",
+    predictions_path: Path = PROCESSED_DATA_DIR / "xxx",
+    probabilities_path: Path = PROCESSED_DATA_DIR / "xxx"
     # -----------------------------------------
 ):
-    # ---- REPLACE THIS WITH YOUR OWN CODE ----
-    logger.info("Performing inference for model...")
-    for i in tqdm(range(10), total=10):
-        if i == 5:
-            logger.info("Something happened for iteration 5.")
-    logger.success("Inference complete.")
-    # -----------------------------------------
-
+    # Import main model pipeline from 'train.py' here (load pkl) and use .predict functionality.
+    
 
 if __name__ == "__main__":
     app()

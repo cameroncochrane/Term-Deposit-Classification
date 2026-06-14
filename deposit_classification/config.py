@@ -12,9 +12,9 @@ logger.info(f"PROJ_ROOT path is: {PROJ_ROOT}")
 
 DATA_DIR = PROJ_ROOT / "data"
 RAW_DATA_DIR = DATA_DIR / "raw" # Self-explanatory...
-INTERIM_DATA_DIR = DATA_DIR / "interim" # Dataset after loading of raw data and checking null/empty values + dealing with them
-PROCESSED_DATA_DIR = DATA_DIR / "processed" # Data used for model training/testing, and predictions, is placed here
-EXTERNAL_DATA_DIR = DATA_DIR / "external" # Not relevant in this case.
+INTERIM_DATA_DIR = DATA_DIR / "interim" # Dataset after train-test split of the raw data
+PROCESSED_DATA_DIR = DATA_DIR / "processed" # Place prediction and probabilities from testing here
+EXTERNAL_DATA_DIR = DATA_DIR / "external" # N/A
 
 MODELS_DIR = PROJ_ROOT / "models"
 

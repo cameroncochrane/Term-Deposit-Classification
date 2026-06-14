@@ -4,26 +4,17 @@ from loguru import logger
 from tqdm import tqdm
 import typer
 
-from deposit_classification.config import PROCESSED_DATA_DIR
+from deposit_classification.config import INTERIM_DATA_DIR
 
 app = typer.Typer()
 
 
 @app.command()
 def main(
-    # ---- REPLACE DEFAULT PATHS AS APPROPRIATE ----
-    input_path: Path = PROCESSED_DATA_DIR / "dataset.csv",
-    output_path: Path = PROCESSED_DATA_DIR / "features.csv",
-    # -----------------------------------------
+    output_directory: Path = INTERIM_DATA_DIR / "xxx" # Place the pipeline components here as pkl files.
 ):
-    # ---- REPLACE THIS WITH YOUR OWN CODE ----
-    logger.info("Generating features from dataset...")
-    for i in tqdm(range(10), total=10):
-        if i == 5:
-            logger.info("Something happened for iteration 5.")
-    logger.success("Features generation complete.")
-    # -----------------------------------------
-
+    
+    # Here we will define (not use) the 'feature selection', 'cyclical_encoding', 'preprocessor', and 'sampler' components of the overall model pipeline. Make sure they can be exported (either with a standard import in train/predict.py or save as pkl object)
 
 if __name__ == "__main__":
     app()
