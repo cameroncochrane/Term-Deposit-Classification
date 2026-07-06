@@ -1,13 +1,4 @@
-"""Streamlit showcase for the Term Deposit Classification project.
-
-Run from the project root (or its parent directory) with:
-
-    streamlit run streamlit_app.py
-
-The app only requires `models/model_pipeline.joblib` (already committed to the
-repo) to serve predictions. If `data/raw/term-deposit-marketing-2020.csv` is
-also present, the Explore Data and Model Performance tabs are enabled too.
-"""
+# Streamlit showcase for the Term Deposit Classification project.
 
 from pathlib import Path
 
