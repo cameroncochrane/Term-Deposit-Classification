@@ -13,11 +13,28 @@ Create and activate your virtual environment, then install dependencies:
 pip install -r requirements.txt
 ```
 
+## Try The Demo App First
+
+`models/model_pipeline.joblib` is already trained and committed, so you can
+launch the interactive demo without running the pipeline at all:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+This works from the repository root or its parent directory. See the
+[project README](https://github.com/cameroncochrane/Term-Deposit-Classification#streamlit-demo-app)
+for a tour of what each tab shows.
+
 ## Data
 
 Place the source dataset at:
 
 `data/raw/term-deposit-marketing-2020.csv`
+
+This is only needed to reproduce the pipeline below, or to unlock the demo
+app's data-exploration and live model-performance tabs — the CSV is
+gitignored, so it isn't included in a fresh clone.
 
 ## Run The Pipeline
 

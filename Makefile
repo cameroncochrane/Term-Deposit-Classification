@@ -62,6 +62,11 @@ create_environment:
 data: requirements
 	$(PYTHON_INTERPRETER) deposit_classification/dataset.py
 
+## Run the Streamlit demo app
+.PHONY: app
+app:
+	streamlit run streamlit_app.py
+
 
 #################################################################################
 # Self Documenting Commands                                                     #
