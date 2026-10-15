@@ -1,0 +1,46 @@
+Actionable deployment plan for the existing XGBoost pipeline:
+
+1) Package and expose the model
+- Refactor training/inference code into reusable modules.
+- Create a FastAPI app with `/health` and `/predict` endpoints.
+- Add request/response schemas with Pydantic validation.
+
+2) Containerize the service
+- Write a production Dockerfile (slim base image, pinned dependencies).
+- Run local tests against the container.
+- Push the image to Amazon ECR.
+
+3) Deploy on AWS
+- Choose one target: AWS App Runner (simpler) or Lambda + API Gateway (serverless).
+- Configure environment variables, IAM permissions, logging, and autoscaling.
+- Validate deployment with a smoke test hitting `/health` and `/predict`.
+
+4) Add model versioning and registry
+- Track experiments and artifacts with MLflow.
+- Register the best model in the MLflow Model Registry.
+- Promote models across stages (Staging -> Production) with documented criteria.
+
+5) Build CI/CD with GitHub Actions
+- On every push: run linting, unit/integration tests, and build the Docker image.
+- On main branch: push image to ECR and deploy automatically.
+- Add rollback support by redeploying the previous successful image tag.
+
+6) Implement drift monitoring and retraining trigger
+- Use Evidently to compare reference vs. production data.
+- Create a scheduled job to generate drift reports and emit alerts.
+- Simulate feature distribution shift to prove alerts fire correctly.
+- Trigger retraining when drift thresholds are exceeded; register and redeploy if metrics pass.
+
+7) Define infrastructure as code
+- Implement cloud resources using Terraform or AWS CDK.
+- Include networking, compute service, IAM roles, logging, and monitoring.
+- Apply from CI to keep environments reproducible.
+
+8) Deliverables checklist
+- Running API endpoint in AWS.
+- MLflow-tracked runs + registered production model.
+- GitHub Actions workflow for test/build/deploy.
+- Drift report example + alert evidence + retraining run log.
+- IaC project that can recreate the full stack.
+
+Outcome: demonstrates end-to-end ownership of model delivery, operations, and lifecycle management.

@@ -1,0 +1,1 @@
+This directory contains the scripts related to model pipeline development and data exploration, processing and engineering.

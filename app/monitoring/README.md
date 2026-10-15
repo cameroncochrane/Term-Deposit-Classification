@@ -1,0 +1,1 @@
+This directory contains the scripts required for Evidently to monitor and test the deployed ML model.

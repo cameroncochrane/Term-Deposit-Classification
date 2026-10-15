@@ -1,0 +1,1 @@
+This directory will contain the scripts required for creation of the FastAPI alongside Pydantic

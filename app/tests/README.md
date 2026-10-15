@@ -1,0 +1,1 @@
+Contains scripts related to testing the Evidently data drift monitoring capability.
