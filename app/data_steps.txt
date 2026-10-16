@@ -1,0 +1,20 @@
+Term Deposit Classification Data Splitting + Pr-processing + Feature Engineering Steps
+========================================================================================
+
+1. X and y separation + stratified train-test split.
+
+2. y: Map yes/no to 1/0.
+
+3. Remove rows with missing job/education, then impute missing contacts with grouped mode imputation based on 
+job and education (clean_and_impute_contact).
+
+4. Created FeatureDropper and CyclicalDateEncoder objects to be used in the pre-processing pipeline.
+
+5. Pipeline:
+	- age, balance, campaign, default, loan, contact, education, marital all removed (FeatureDropper).
+	- duration, day_sin, day_cos, month_sin, month_cos all *defined* as numeric (simple imputation, median + robust scaling) 
+	(CyclicalDateEncoder to creaste _cos and _sin columns before processing) 
+	- housing *defined* as ordinal feature (simple imputation, most frequent + ordinal encoding)
+	- job *defined* as a one_hot feature (simple imputation, most frequent + one hot encoding)
+	- RandomOversampler, auto.
+	- XGB model

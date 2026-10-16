@@ -27,7 +27,7 @@ app = typer.Typer()
 def main(
         features_path: Path = PROCESSED_DATA_DIR / "X_train.pkl", # X_train
         labels_path: Path = PROCESSED_DATA_DIR / "y_train.pkl", # y-train
-        model_path: Path = MODELS_DIR / "model_pipeline.joblib"
+        model_path: Path = MODELS_DIR / "model_pipeline_2.joblib"
     ):
     print("train")
 

@@ -24,7 +24,6 @@ def main(
     X_train_path: Path = PROCESSED_DATA_DIR / "X_train.pkl",
     y_train_path: Path = PROCESSED_DATA_DIR / "y_train.pkl",
     figures_directory: Path = FIGURES_DIR):
-    print("features.py")
 
     with open(X_train_path, "rb") as f:
         X_train = pickle.load(f)
@@ -151,7 +150,8 @@ class FeatureDropper(BaseEstimator, TransformerMixin):
             )
 
         return X.drop(
-            columns=self.columns_
+            columns=self.columns,
+            errors="ignore"
         ).copy()
 
 class CyclicalDateEncoder(BaseEstimator, TransformerMixin):

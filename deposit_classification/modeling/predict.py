@@ -29,7 +29,7 @@ app = typer.Typer()
 def main(
     features_path: Path = PROCESSED_DATA_DIR / "X_test.pkl", # X_test
     labels_path: Path = PROCESSED_DATA_DIR / "y_test.pkl", # y_test
-    model_path: Path = MODELS_DIR / "model_pipeline.joblib",
+    model_path: Path = MODELS_DIR / "model_pipeline_2.joblib",
     predictions_path: Path = PROCESSED_DATA_DIR / "y_pred.pkl",
     probabilities_path: Path = PROCESSED_DATA_DIR / "y_proba.pkl"
 ):
