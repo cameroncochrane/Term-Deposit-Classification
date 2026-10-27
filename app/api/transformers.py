@@ -1,4 +1,4 @@
-# The model pipeline uses two custom transformers that need to be located by the unpacked pipeline. Place them here:
+# The model pipeline uses two custom transformers (created during model development) that need to be located by the unpacked pipeline:
 
 import numpy as np
 import pandas as pd

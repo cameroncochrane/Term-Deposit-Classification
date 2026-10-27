@@ -6,7 +6,7 @@ import joblib
 import pandas as pd
 
 from api.schemas import PredictionInput, PredictionOutput
-from api.transformers import *  # noqa: F401,F403 - registers custom transformer classes for unpickling
+from api.transformers import *  # noqa: F401,F403 - registers custom transformer classes for unpickling developed during model development.
 
 MODEL_PATH = (
     Path(__file__).resolve().parent.parent
@@ -14,7 +14,7 @@ MODEL_PATH = (
     / "model_pipeline_2.joblib"
 )
 
-pipeline = joblib.load(MODEL_PATH)
+pipeline = joblib.load(MODEL_PATH) # Load the model from the specified path. Make sure the custom column transformers developed during model development are imported.
 
 
 def predict(data: PredictionInput) -> PredictionOutput:

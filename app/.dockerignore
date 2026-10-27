@@ -1,0 +1,9 @@
+tests
+monitoring
+.github
+*.md
+*.txt
+!requirements.txt
+__pycache__
+*.pyc
+.pytest_cache
