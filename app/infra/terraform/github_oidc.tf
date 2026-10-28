@@ -63,6 +63,7 @@ data "aws_iam_policy_document" "github_actions_deploy" {
   statement {
     sid = "ECRRepo"
     actions = [
+      "ecr:DescribeRepositories",
       "ecr:BatchCheckLayerAvailability",
       "ecr:GetDownloadUrlForLayer",
       "ecr:BatchGetImage",
@@ -76,8 +77,10 @@ data "aws_iam_policy_document" "github_actions_deploy" {
   }
 
   statement {
+    # s3:DeleteObject is for releasing the native S3 lock (use_lockfile) - Terraform writes a
+    # `<key>.tflock` object before an operation and deletes it after, not just on state writes.
     sid     = "TerraformStateObjects"
-    actions = ["s3:GetObject", "s3:PutObject", "s3:ListBucket"]
+    actions = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
     resources = [
       aws_s3_bucket.tfstate.arn,
       "${aws_s3_bucket.tfstate.arn}/*",
@@ -93,6 +96,7 @@ data "aws_iam_policy_document" "github_actions_deploy" {
       "s3:GetBucketAcl",
       "s3:GetBucketTagging",
       "s3:GetBucketLocation",
+      "s3:GetBucketPolicy",
     ]
     resources = [aws_s3_bucket.tfstate.arn]
   }
