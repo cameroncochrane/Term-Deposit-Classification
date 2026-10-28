@@ -26,7 +26,7 @@ from sklearn.model_selection import train_test_split
 # directory it's launched from.
 PROJ_ROOT = Path(__file__).resolve().parent
 RAW_DATA_PATH = PROJ_ROOT / "data" / "raw" / "term-deposit-marketing-2020.csv"
-MODEL_PATH = PROJ_ROOT / "models" / "model_pipeline.joblib"
+MODEL_PATH = PROJ_ROOT / "models" / "streamlit_demo" / "model_pipeline.joblib"
 FIGURES_DIR = PROJ_ROOT / "reports" / "figures"
 GITHUB_URL = "https://github.com/cameroncochrane/Term-Deposit-Classification"
 

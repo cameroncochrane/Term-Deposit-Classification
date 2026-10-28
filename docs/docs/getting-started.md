@@ -15,7 +15,7 @@ pip install -r requirements.txt
 
 ## Try The Demo App First
 
-`models/model_pipeline.joblib` is already trained and committed, so you can
+`models/streamlit_demo/model_pipeline.joblib` is already trained and committed, so you can
 launch the interactive demo without running the pipeline at all:
 
 ```bash
@@ -54,7 +54,7 @@ python deposit_classification/modeling/predict.py
 - EDA plots in `reports/figures/` from `deposit_classification/plots.py`
 - Analysis tables printed to terminal from `deposit_classification/plots.py` and
 	`deposit_classification/features.py`
-- Trained model in `models/model_pipeline.joblib`
+- Trained model in `models/streamlit_demo/model_pipeline.joblib`
 - Generated feature plots in `reports/figures/`
 
 ## Build Documentation
