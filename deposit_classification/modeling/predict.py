@@ -7,6 +7,7 @@ import numpy as np
 from loguru import logger
 from tqdm import tqdm
 import typer
+import mlflow
 from sklearn.metrics import (
     accuracy_score,
     balanced_accuracy_score,
@@ -20,7 +21,14 @@ from sklearn.metrics import (
     classification_report
 )
 
-from deposit_classification.config import MODELS_DIR, PROCESSED_DATA_DIR
+import json
+
+from deposit_classification.config import (
+    MODELS_DIR,
+    PROCESSED_DATA_DIR,
+    MLFLOW_TRACKING_URI,
+    LATEST_RUN_INFO_PATH,
+)
 
 app = typer.Typer()
 
@@ -142,6 +150,15 @@ def main(
         y_pred=y_pred,
         y_proba=y_proba
     )
+
+    # Log test-set metrics into the same MLflow run train.py created, so one run
+    # captures both the training config and true held-out performance.
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    run_id = json.loads(LATEST_RUN_INFO_PATH.read_text())["run_id"]
+    with mlflow.start_run(run_id=run_id):
+        mlflow.log_metrics(
+            {f"test_{k.lower().replace(' ', '_')}": v for k, v in best_xgb_ros_evaluate["metrics"].items()}
+        )
 
 
 if __name__ == "__main__":

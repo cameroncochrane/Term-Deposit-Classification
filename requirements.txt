@@ -8,6 +8,7 @@ scipy
 scikit-learn
 imbalanced-learn
 xgboost
+mlflow==3.17.2
 joblib
 python-dotenv
 tqdm

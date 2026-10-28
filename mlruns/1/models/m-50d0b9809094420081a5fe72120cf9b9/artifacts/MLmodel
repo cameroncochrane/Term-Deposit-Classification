@@ -1,0 +1,23 @@
+artifact_path: /Users/cameroncochrane/Data Projects/Term Deposit Classification/mlruns/1/models/m-50d0b9809094420081a5fe72120cf9b9/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.skops
+    predict_fn: predict
+    python_version: 3.12.3
+  sklearn:
+    code: null
+    pickled_model: model.skops
+    serialization_format: skops
+    sklearn_version: 1.9.0
+    skops_trusted_types: null
+mlflow_version: 3.17.2
+model_id: m-50d0b9809094420081a5fe72120cf9b9
+model_size_bytes: 8884
+model_uuid: m-50d0b9809094420081a5fe72120cf9b9
+prompts: null
+run_id: 17b6c21606274888a2d35d2e4ccb33f6
+utc_time_created: '2026-10-28 13:55:42.489904'

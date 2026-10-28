@@ -1,0 +1,23 @@
+artifact_path: /Users/cameroncochrane/Data Projects/Term Deposit Classification/mlruns/1/models/m-6257828a491840ab81565dc23b9e071c/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.12.3
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: pickle
+    sklearn_version: 1.9.0
+    skops_trusted_types: null
+mlflow_version: 3.17.2
+model_id: m-6257828a491840ab81565dc23b9e071c
+model_size_bytes: 983951
+model_uuid: m-6257828a491840ab81565dc23b9e071c
+prompts: null
+run_id: a8c87b7d309340e485d586d74f8bdf94
+utc_time_created: '2026-10-28 14:11:20.596669'

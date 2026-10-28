@@ -21,6 +21,13 @@ MODELS_DIR = PROJ_ROOT / "models"
 REPORTS_DIR = PROJ_ROOT / "reports"
 FIGURES_DIR = REPORTS_DIR / "figures"
 
+# MLflow tracking + registry (local sqlite backend store; required for the Model Registry,
+# which plain file-based tracking does not support)
+MLFLOW_TRACKING_URI = f"sqlite:///{PROJ_ROOT / 'mlflow.db'}"
+MLFLOW_EXPERIMENT_NAME = "term-deposit-classification"
+MLFLOW_REGISTERED_MODEL_NAME = "term-deposit-classifier"
+LATEST_RUN_INFO_PATH = MODELS_DIR / "latest_run_info.json"
+
 # If tqdm is installed, configure loguru with tqdm.write
 # https://github.com/Delgan/loguru/issues/135
 try:

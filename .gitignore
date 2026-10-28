@@ -13,6 +13,8 @@
 *.swp
 *.swo
 
+# MLflow
+
 # Terraform
 **/.terraform/*
 *.tfstate

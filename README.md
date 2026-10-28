@@ -35,9 +35,15 @@ pip install -r requirements.txt
      python deposit_classification/dataset.py
      python deposit_classification/plots.py
      python deposit_classification/features.py
-     python deposit_classification/modeling/train.py
-     python deposit_classification/modeling/predict.py
+     python deposit_classification/modeling/train.py                      # also logs to MLflow
+     python deposit_classification/modeling/predict.py                    # logs test metrics into the same MLflow run
+     python deposit_classification/modeling/register_model.py             # registers the model in the MLflow Model Registry
+     python deposit_classification/modeling/promote_model.py              # promotes it to "production" if it doesn't regress
+     python deposit_classification/modeling/export_production_model.py    # writes it to app/models/ for the live API
      ```
+
+   See [Experiment Tracking & Model Registry](#experiment-tracking--model-registry-mlflow) below
+   for what the MLflow steps actually do.
 
 ## Data And Outputs
 
@@ -84,6 +90,26 @@ or directly, from either the project root or its parent directory:
 streamlit run streamlit_app.py
 ```
 
+## Experiment Tracking & Model Registry (MLflow)
+
+Training runs, evaluation metrics, and the model lifecycle (staging → production) are tracked
+with MLflow. Backend store and artifacts are local (`mlflow.db`, `mlruns/` - gitignored, no
+server or AWS cost needed), so this works out of the box after `pip install -r requirements.txt`.
+
+View runs and the registry:
+
+```bash
+source .venv/bin/activate && mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5001
+```
+
+(`mlflow` only exists inside `.venv` - use `.venv/bin/mlflow ...` if you'd rather not activate it.)
+Then open `http://localhost:5001`.
+
+Full details - the registered model name, promotion criteria (an F1/recall no-regression check,
+enforced by `promote_model.py`, not just documented), and how a promoted model gets from the
+registry into the live API - are in
+[deposit_classification/modeling/README.md](deposit_classification/modeling/README.md).
+
 ## Project Organization
 
 ```
@@ -128,8 +154,11 @@ streamlit run streamlit_app.py
     │
     ├── modeling                
     │   ├── __init__.py 
-    │   ├── predict.py          <- Code to run model inference with trained models          
-    │   └── train.py            <- Code to train models
+    │   ├── train.py                     <- Trains the model, logs params/cv score/model to MLflow
+    │   ├── predict.py                   <- Runs inference + evaluation, logs test metrics to MLflow
+    │   ├── register_model.py            <- Registers the trained model in the MLflow Model Registry
+    │   ├── promote_model.py             <- Promotes a version to "production" if it doesn't regress
+    │   └── export_production_model.py   <- Writes the production model to app/models/
     │
     └── plots.py                <- Code to create visualizations
 ```
