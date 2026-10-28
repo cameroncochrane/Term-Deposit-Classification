@@ -39,3 +39,9 @@ variable "log_retention_days" {
   type        = number
   default     = 14
 }
+
+variable "github_repository" {
+  description = "GitHub \"owner/repo\" allowed to assume the CI deploy role via OIDC"
+  type        = string
+  default     = "cameroncochrane/lA82lBNDpo9AlAnK"
+}

@@ -1,0 +1,118 @@
+name: CI/CD
+
+# GitHub only ever reads workflows from .github/workflows/ at the repo root - that's a platform
+# constraint, not a scope violation. Every step below still only touches app/: lint, test, and
+# the Docker build context are all scoped to that directory, same as local development.
+
+on:
+  push:
+    branches: ["**"]
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: eu-west-2
+  ECR_REPOSITORY: term-deposit-classification-api
+  AWS_DEPLOY_ROLE_ARN: arn:aws:iam::934912969749:role/term-deposit-classification-github-actions-deploy
+
+jobs:
+  lint-test-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt ruff pytest httpx
+
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Test
+        run: pytest tests/
+
+      - name: Set up QEMU (arm64 emulation for the Docker build)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (validation only - not pushed)
+        run: |
+          docker build --platform linux/arm64 --provenance=false --sbom=false \
+            -t term-deposit-api:ci -f Dockerfile .
+
+  deploy:
+    needs: lint-test-build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # required to assume the AWS role via OIDC
+      contents: read
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC - no stored keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up QEMU (arm64 emulation for the Docker build)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        env:
+          ECR_URI: ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build --platform linux/arm64 --provenance=false --sbom=false \
+            -t "$ECR_URI:$IMAGE_TAG" -f Dockerfile .
+          docker push "$ECR_URI:$IMAGE_TAG"
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.17.0"
+
+      - name: Terraform init
+        working-directory: app/infra/terraform
+        run: terraform init -input=false
+
+      - name: Terraform apply
+        working-directory: app/infra/terraform
+        run: terraform apply -input=false -auto-approve -var "image_tag=${{ github.sha }}"
+
+      - name: Smoke test the deployed API
+        working-directory: app/infra/terraform
+        run: |
+          API_URL=$(terraform output -raw api_endpoint)
+          curl --fail -s "$API_URL/health"
+          echo
+          curl --fail -s -X POST "$API_URL/predict" \
+            -H "Content-Type: application/json" \
+            -d '{"duration":120,"day":15,"month":"may","housing":"yes","job":"technician"}'
+          echo

@@ -2,13 +2,14 @@
 
 from fastapi import FastAPI
 
-from api.schemas import PredictionInput, PredictionOutput
 from api import service
+from api.schemas import PredictionInput, PredictionOutput
 
 app = FastAPI(title="Term Deposit Prediction API")
 
 # FastAPI, in this context, is a fast way to interact with this project's XGBoost pipeline, primarily for inference.
 # The major part here is "/predict". It calls the function that uses the model, with 'data' as the payload to make a model prediction.
+
 
 @app.get("/health")
 def health():

@@ -1,0 +1,62 @@
+name: Rollback
+
+# Manually redeploy a previously-pushed image tag - the exact same `terraform apply -var
+# image_tag=...` mechanism the main deploy job uses, just pointed at an older, already-pushed
+# tag instead of building a new one. No bespoke rollback logic.
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: >
+          Image tag to redeploy (a git SHA from a previous successful deploy - see Actions
+          history for ci-cd.yml, or run `aws ecr list-images --repository-name
+          term-deposit-classification-api` to list what's available in ECR).
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: eu-west-2
+  AWS_DEPLOY_ROLE_ARN: arn:aws:iam::934912969749:role/term-deposit-classification-github-actions-deploy
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    defaults:
+      run:
+        working-directory: app/infra/terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC - no stored keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.17.0"
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform apply (redeploy requested tag)
+        run: terraform apply -input=false -auto-approve -var "image_tag=${{ inputs.image_tag }}"
+
+      - name: Smoke test the deployed API
+        run: |
+          API_URL=$(terraform output -raw api_endpoint)
+          curl --fail -s "$API_URL/health"
+          echo
+          curl --fail -s -X POST "$API_URL/predict" \
+            -H "Content-Type: application/json" \
+            -d '{"duration":120,"day":15,"month":"may","housing":"yes","job":"technician"}'
+          echo

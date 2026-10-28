@@ -6,6 +6,18 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
+  }
+
+  backend "s3" {
+    bucket       = "term-deposit-classification-tfstate-934912969749"
+    key          = "app/infra/terraform.tfstate"
+    region       = "eu-west-2"
+    use_lockfile = true
+    encrypt      = true
   }
 }
 

@@ -1,10 +1,12 @@
 # Pydantic request and response schemas
 
-from pydantic import BaseModel, Field, ConfigDict
 from typing import Literal
 
-# Here we are defining the strict data types that the model pipeline requires as an input. 
+from pydantic import BaseModel, ConfigDict, Field
+
+# Here we are defining the strict data types that the model pipeline requires as an input.
 # We can also specify what values are expected for discrete data categories e.g months, days, job type
+
 
 class PredictionInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -13,8 +15,7 @@ class PredictionInput(BaseModel):
     day: int = Field(ge=1, le=31)
 
     month: Literal[
-        "jan", "feb", "mar", "apr", "may", "jun",
-        "jul", "aug", "sep", "oct", "nov", "dec"
+        "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"
     ]
 
     housing: Literal["yes", "no"]
