@@ -6,7 +6,7 @@ import joblib
 import pandas as pd
 
 from api.schemas import PredictionInput, PredictionOutput
-from api.transformers import FeatureDropper, CyclicalDateEncoder  # noqa: F401,F403 - registers custom transformer classes for unpickling developed during model development.
+from api.transformers import CyclicalDateEncoder, FeatureDropper  # noqa: F401 - registers custom transformer classes for unpickling developed during model development.
 
 MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "model_pipeline_2.joblib"
 
