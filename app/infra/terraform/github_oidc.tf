@@ -99,6 +99,14 @@ data "aws_iam_policy_document" "github_actions_deploy" {
   }
 
   statement {
+    sid     = "PredictionsBucketConfigRead"
+    actions = ["s3:Get*", "s3:List*"]
+    resources = [
+      aws_s3_bucket.predictions.arn
+    ]
+  }
+
+  statement {
     # Covers every S3 bucket-level config read (CORS, website, logging, lifecycle, replication,
     # ACL, policy, versioning, encryption, ...) the aws_s3_bucket resource's refresh might call -
     # still scoped to just this one state bucket, no object-level reach (that's the statement
@@ -151,6 +159,7 @@ data "aws_iam_policy_document" "github_actions_deploy" {
     resources = [
       aws_iam_role.lambda_exec.arn,
       aws_iam_role.github_actions_deploy.arn,
+      aws_iam_role.github_actions_monitor.arn
     ]
   }
 
