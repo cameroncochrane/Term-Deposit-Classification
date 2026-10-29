@@ -51,12 +51,60 @@ jobs:
       - name: Terraform apply (redeploy requested tag)
         run: terraform apply -input=false -auto-approve -var "image_tag=${{ inputs.image_tag }}"
 
+      - name: Warm up the function
+        # Same cold-start issue as ci-cd.yml's deploy job - a fresh image always cold-starts on
+        # its next invocation, which can take longer than API Gateway's hard 30s cap allows.
+        # Absorb it with a direct invoke (respects the full lambda_timeout) before smoke testing.
+        run: |
+          FUNCTION_NAME=$(terraform output -raw lambda_function_name)
+          cat > /tmp/warmup_event.json << 'EOF'
+          {
+            "version": "2.0",
+            "routeKey": "$default",
+            "rawPath": "/health",
+            "rawQueryString": "",
+            "headers": {"content-type": "application/json"},
+            "requestContext": {
+              "http": {"method": "GET", "path": "/health", "protocol": "HTTP/1.1", "sourceIp": "127.0.0.1", "userAgent": "ci-warmup"},
+              "domainName": "example.com",
+              "stage": "$default"
+            },
+            "body": null,
+            "isBase64Encoded": false
+          }
+          EOF
+          aws lambda invoke \
+            --function-name "$FUNCTION_NAME" \
+            --payload fileb:///tmp/warmup_event.json \
+            --cli-read-timeout 70 \
+            /tmp/warmup_response.json
+          echo "Warm-up response:"
+          cat /tmp/warmup_response.json
+
       - name: Smoke test the deployed API
         run: |
           API_URL=$(terraform output -raw api_endpoint)
-          curl --fail -s "$API_URL/health"
-          echo
-          curl --fail -s -X POST "$API_URL/predict" \
-            -H "Content-Type: application/json" \
-            -d '{"duration":120,"day":15,"month":"may","housing":"yes","job":"technician"}'
-          echo
+
+          check() {
+            local method="$1" path="$2" data="$3" attempt status body response
+            for attempt in 1 2 3; do
+              if [ -n "$data" ]; then
+                response=$(curl -s -w '\n%{http_code}' -X "$method" "$API_URL$path" -H "Content-Type: application/json" -d "$data")
+              else
+                response=$(curl -s -w '\n%{http_code}' "$API_URL$path")
+              fi
+              status=$(echo "$response" | tail -n1)
+              body=$(echo "$response" | sed '$d')
+              echo "Attempt $attempt: $method $path -> HTTP $status"
+              echo "$body"
+              if [ "$status" = "200" ]; then
+                return 0
+              fi
+              sleep 5
+            done
+            echo "::error::$method $path failed after 3 attempts (last status: $status, body: $body)"
+            return 1
+          }
+
+          check GET /health ""
+          check POST /predict '{"duration":120,"day":15,"month":"may","housing":"yes","job":"technician"}'

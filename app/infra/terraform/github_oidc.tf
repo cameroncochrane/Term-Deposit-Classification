@@ -112,6 +112,9 @@ data "aws_iam_policy_document" "github_actions_deploy" {
       "lambda:ListTags",
       "lambda:TagResource",
       "lambda:GetPolicy",
+      # Direct synchronous invoke for the post-deploy warm-up call - bypasses API Gateway's
+      # hard 30s integration timeout cap, so a worst-case cold start has real room to finish.
+      "lambda:InvokeFunction",
     ]
     resources = [aws_lambda_function.api.arn]
   }
