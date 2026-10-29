@@ -45,8 +45,15 @@ resource "aws_iam_role" "github_actions_deploy" {
 
 data "aws_iam_policy_document" "github_actions_deploy" {
   # `terraform plan`/`apply` refreshes every resource already in state, not just the one being
-  # changed (the Lambda's image_uri) - so this role needs read access across everything the
-  # Terraform config manages, even though only a handful of actions actually mutate anything.
+  # changed (the Lambda's image_uri) - and the AWS provider's refresh of a resource like
+  # aws_s3_bucket calls a long tail of sub-config read APIs (CORS, logging, lifecycle, website,
+  # replication, ...) that aren't obvious from the resource's own .tf block. Enumerating exact
+  # read-only actions one at a time turned into repeated whack-a-mole (missing one blocks the
+  # whole apply, and any manual console fix gets overwritten by the next apply anyway, since
+  # Terraform reconciles this policy to exactly match this file). So: every *write* action below
+  # stays explicitly enumerated and narrow - that's what actually matters for blast radius - but
+  # read-only verbs (Get/List/Describe) are wildcarded, each still scoped to one specific
+  # resource ARN this project owns, not to the account.
 
   statement {
     sid       = "STSIdentity"
@@ -61,13 +68,19 @@ data "aws_iam_policy_document" "github_actions_deploy" {
   }
 
   statement {
-    sid = "ECRRepo"
+    sid = "ECRRepoRead"
     actions = [
-      "ecr:DescribeRepositories",
+      "ecr:Describe*",
+      "ecr:Get*",
+      "ecr:BatchGet*",
       "ecr:BatchCheckLayerAvailability",
-      "ecr:GetDownloadUrlForLayer",
-      "ecr:BatchGetImage",
-      "ecr:DescribeImages",
+    ]
+    resources = ["arn:aws:ecr:${var.aws_region}:${data.aws_caller_identity.current.account_id}:repository/${var.ecr_repository_name}"]
+  }
+
+  statement {
+    sid = "ECRRepoPush"
+    actions = [
       "ecr:InitiateLayerUpload",
       "ecr:UploadLayerPart",
       "ecr:CompleteLayerUpload",
@@ -77,8 +90,6 @@ data "aws_iam_policy_document" "github_actions_deploy" {
   }
 
   statement {
-    # s3:DeleteObject is for releasing the native S3 lock (use_lockfile) - Terraform writes a
-    # `<key>.tflock` object before an operation and deletes it after, not just on state writes.
     sid     = "TerraformStateObjects"
     actions = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
     resources = [
@@ -88,30 +99,30 @@ data "aws_iam_policy_document" "github_actions_deploy" {
   }
 
   statement {
-    sid = "TerraformStateBucketConfig"
-    actions = [
-      "s3:GetBucketVersioning",
-      "s3:GetEncryptionConfiguration",
-      "s3:GetBucketPublicAccessBlock",
-      "s3:GetBucketAcl",
-      "s3:GetBucketTagging",
-      "s3:GetBucketLocation",
-      "s3:GetBucketPolicy",
-    ]
+    # Covers every S3 bucket-level config read (CORS, website, logging, lifecycle, replication,
+    # ACL, policy, versioning, encryption, ...) the aws_s3_bucket resource's refresh might call -
+    # still scoped to just this one state bucket, no object-level reach (that's the statement
+    # above). s3:List* is for the bucket itself (e.g. ListBucketVersions), not object listing.
+    sid       = "TerraformStateBucketConfig"
+    actions   = ["s3:Get*", "s3:List*"]
     resources = [aws_s3_bucket.tfstate.arn]
+  }
+
+  statement {
+    sid     = "LambdaRead"
+    actions = ["lambda:Get*", "lambda:List*"]
+    resources = [
+      aws_lambda_function.api.arn,
+      "${aws_lambda_function.api.arn}:*",
+    ]
   }
 
   statement {
     sid = "LambdaManage"
     actions = [
-      "lambda:GetFunction",
-      "lambda:GetFunctionConfiguration",
       "lambda:UpdateFunctionCode",
       "lambda:UpdateFunctionConfiguration",
-      "lambda:ListVersionsByFunction",
-      "lambda:ListTags",
       "lambda:TagResource",
-      "lambda:GetPolicy",
       # Direct synchronous invoke for the post-deploy warm-up call - bypasses API Gateway's
       # hard 30s integration timeout cap, so a worst-case cold start has real room to finish.
       "lambda:InvokeFunction",
@@ -126,20 +137,17 @@ data "aws_iam_policy_document" "github_actions_deploy" {
   }
 
   statement {
+    # CloudWatch Logs' Describe/List actions don't support resource-level restriction, so this
+    # is necessarily account-wide - but it's read-only (no Put/Delete) and scoped to this one
+    # service, not a broader wildcard.
     sid       = "LogsRead"
-    actions   = ["logs:DescribeLogGroups", "logs:ListTagsForResource", "logs:ListTagsLogGroup"]
+    actions   = ["logs:Describe*", "logs:List*"]
     resources = ["*"]
   }
 
   statement {
-    sid = "IAMRead"
-    actions = [
-      "iam:GetRole",
-      "iam:GetRolePolicy",
-      "iam:ListRolePolicies",
-      "iam:ListAttachedRolePolicies",
-      "iam:ListRoleTags",
-    ]
+    sid     = "IAMRoleRead"
+    actions = ["iam:Get*", "iam:List*"]
     resources = [
       aws_iam_role.lambda_exec.arn,
       aws_iam_role.github_actions_deploy.arn,
@@ -148,7 +156,7 @@ data "aws_iam_policy_document" "github_actions_deploy" {
 
   statement {
     sid       = "IAMOidcRead"
-    actions   = ["iam:GetOpenIDConnectProvider"]
+    actions   = ["iam:Get*", "iam:List*"]
     resources = [aws_iam_openid_connect_provider.github_actions.arn]
   }
 }
