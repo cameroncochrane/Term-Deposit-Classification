@@ -91,7 +91,7 @@ data "aws_iam_policy_document" "github_actions_deploy" {
 
   statement {
     sid     = "TerraformStateObjects"
-    actions = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
+    actions = ["s3:Get*", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
     resources = [
       aws_s3_bucket.tfstate.arn,
       "${aws_s3_bucket.tfstate.arn}/*",
