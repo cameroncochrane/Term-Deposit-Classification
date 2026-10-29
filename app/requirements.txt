@@ -9,3 +9,4 @@ scikit-learn==1.9.0
 xgboost==3.3.0
 imbalanced-learn==0.14.2
 joblib==1.5.3
+boto3==1.43.122

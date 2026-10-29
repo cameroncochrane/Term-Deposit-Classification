@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 
-from api import service
+from api import prediction_log, service
 from api.schemas import PredictionInput, PredictionOutput
 
 app = FastAPI(title="Term Deposit Prediction API")
@@ -18,4 +18,6 @@ def health():
 
 @app.post("/predict", response_model=PredictionOutput)
 def predict(data: PredictionInput):
-    return service.predict(data)
+    result = service.predict(data)
+    prediction_log.log_prediction(data, result)
+    return result

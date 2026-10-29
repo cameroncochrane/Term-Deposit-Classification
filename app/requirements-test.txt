@@ -1,0 +1,4 @@
+# Extra deps needed to run app/tests/ in CI (test_drift.py), but not by the deployed Lambda
+# itself - kept out of requirements.txt so the Docker image (which installs that file, not this
+# one) doesn't carry evidently's heavy transitive deps (plotly, scipy, ...) for nothing.
+evidently==0.7.23

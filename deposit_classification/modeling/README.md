@@ -35,7 +35,7 @@ them from there rather than hardcoding strings.
   operations require a database-backed store, not plain file tracking): local sqlite at
   `mlflow.db` (project root). No server, no AWS cost.
 - Artifact store (the logged model files): local `mlruns/` (project root).
-- Both are gitignored - this is single-operator tooling for now, same as Terraform's local state.
+- Both are gitignored.
   View runs and the registry with:
 
   ```bash
@@ -69,10 +69,31 @@ transformer classes' pickled module references from `deposit_classification.feat
 phase 2 - the Lambda container only ships `app/`, so the pickle can't reference anything outside
 it), and overwrites `app/models/model_pipeline_2.joblib`.
 
-That's as far as this goes automatically. Getting the *new* model actually running in AWS still
-means rebuilding and redeploying the container - see [app/README.md](../../app/README.md#updating-the-api).
-Wiring "a new production model" straight through to a redeployed container is CI/CD (phase 5) and
-drift-triggered retraining (phase 6) territory, not this script's job.
+That's as far as this goes automatically when run locally. The scheduled drift-monitor workflow
+(`.github/workflows/drift-monitor.yml`) runs this same chain and, if promoted, opens a PR with
+the updated model rather than deploying it directly - merging that PR is what actually triggers
+a redeploy, via the normal `ci-cd.yml` push-to-main pipeline. See
+[app/monitoring/README.md](../../app/monitoring/README.md) for the full drift -> retrain -> PR flow.
+
+## Keeping the registry in sync with CI
+
+`mlflow.db` is local-only, but CI needs to see the *real* promotion history - otherwise every CI
+run starts from an empty registry, "no existing production version" always looks true, and the
+regression gate never actually gates anything. The drift-monitor workflow handles this by syncing
+the sqlite file to/from S3 (`s3://term-deposit-classification-tfstate-<account-id>/mlflow/mlflow.db`)
+around each run. If you train locally and promote a model, **sync your local file up too**, or CI's
+next run won't know about it:
+
+```bash
+# before training locally (pulls in anything CI has promoted since you last synced)
+aws s3 cp s3://term-deposit-classification-tfstate-934912969749/mlflow/mlflow.db mlflow.db
+
+# after promoting locally
+aws s3 cp mlflow.db s3://term-deposit-classification-tfstate-934912969749/mlflow/mlflow.db
+```
+
+This is manual rather than baked into the scripts themselves, so they don't gain an AWS
+dependency just to run locally with no network access.
 
 ## MLflow 3.x gotchas hit building this
 

@@ -14,6 +14,12 @@ resource "aws_lambda_function" "api" {
   memory_size = var.lambda_memory_size
   timeout     = var.lambda_timeout
 
+  environment {
+    variables = {
+      PREDICTIONS_BUCKET = aws_s3_bucket.predictions.bucket
+    }
+  }
+
   depends_on = [
     aws_cloudwatch_log_group.api,
     aws_iam_role_policy_attachment.lambda_basic_execution,

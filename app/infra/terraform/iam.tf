@@ -18,3 +18,17 @@ resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
   role       = aws_iam_role.lambda_exec.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
+
+data "aws_iam_policy_document" "lambda_predictions_write" {
+  statement {
+    sid       = "WritePredictionLogs"
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.predictions.arn}/predictions/*"]
+  }
+}
+
+resource "aws_iam_role_policy" "lambda_predictions_write" {
+  name   = "${var.project_name}-lambda-predictions-write"
+  role   = aws_iam_role.lambda_exec.id
+  policy = data.aws_iam_policy_document.lambda_predictions_write.json
+}

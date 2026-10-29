@@ -1,0 +1,160 @@
+name: Drift Monitor
+
+# Scheduled Evidently drift check against live prediction traffic. On drift: alert via a GitHub
+# Issue, then retrain -> register -> promote (gated on no F1/recall regression) -> if it passes,
+# open a PR with the updated model rather than committing straight to main. An automated process
+# silently replacing the production model felt like the one place worth a human checkpoint, even
+# though everything else here auto-deploys on merge (see .github/workflows/ci-cd.yml).
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # daily, 06:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: eu-west-2
+  AWS_MONITOR_ROLE_ARN: arn:aws:iam::934912969749:role/term-deposit-classification-github-actions-monitor
+  PREDICTIONS_BUCKET: term-deposit-classification-predictions-934912969749
+  TFSTATE_BUCKET: term-deposit-classification-tfstate-934912969749
+  MLFLOW_SYNC_KEY: mlflow/mlflow.db
+
+jobs:
+  check-drift:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # required to assume the AWS role via OIDC
+      contents: read
+      issues: write # alerting.py opens/updates a GitHub Issue on drift
+    outputs:
+      drift_detected: ${{ steps.drift.outputs.drift_detected }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Configure AWS credentials (OIDC - no stored keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_MONITOR_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run drift check
+        id: drift
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set +e
+          python app/monitoring/monitoring_job.py
+          EXIT_CODE=$?
+          set -e
+          case "$EXIT_CODE" in
+            0) echo "drift_detected=false" >> "$GITHUB_OUTPUT" ;;
+            1) echo "drift_detected=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "monitoring_job.py failed unexpectedly (exit $EXIT_CODE)"; exit "$EXIT_CODE" ;;
+          esac
+
+      - name: Upload drift report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-report
+          path: drift_report.html
+          if-no-files-found: ignore
+
+  retrain:
+    needs: check-drift
+    if: needs.check-drift.outputs.drift_detected == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write # to push the retrain branch
+      pull-requests: write # to open the PR
+      issues: write # to comment on the drift alert issue when a retrain doesn't improve things
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Configure AWS credentials (OIDC - no stored keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_MONITOR_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sync MLflow registry from S3
+        # So the promotion gate compares against the real current-production metrics, not an
+        # empty registry this runner has never seen before.
+        run: |
+          aws s3 cp "s3://${{ env.TFSTATE_BUCKET }}/${{ env.MLFLOW_SYNC_KEY }}" mlflow.db \
+            || echo "No existing registry in S3 yet - starting fresh."
+
+      - name: Rebuild processed training data
+        run: python deposit_classification/dataset.py
+
+      - name: Train
+        run: python deposit_classification/modeling/train.py
+
+      - name: Evaluate
+        run: python deposit_classification/modeling/predict.py
+
+      - name: Register
+        run: python deposit_classification/modeling/register_model.py
+
+      - name: Promote (gated on no F1/recall regression)
+        id: promote
+        run: |
+          set +e
+          python deposit_classification/modeling/promote_model.py
+          EXIT_CODE=$?
+          set -e
+          echo "promoted=$([ "$EXIT_CODE" -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Sync MLflow registry back to S3
+        if: always()
+        run: aws s3 cp mlflow.db "s3://${{ env.TFSTATE_BUCKET }}/${{ env.MLFLOW_SYNC_KEY }}"
+
+      - name: Export promoted model
+        if: steps.promote.outputs.promoted == 'true'
+        run: python deposit_classification/modeling/export_production_model.py
+
+      - name: Open PR with the retrained model
+        if: steps.promote.outputs.promoted == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="drift-retrain-${{ github.run_id }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add app/models/model_pipeline_2.joblib
+          git commit -m "Retrain: drift-triggered model update (run ${{ github.run_id }})"
+          git push origin "$BRANCH"
+          gh pr create --title "Drift-triggered model retrain" \
+            --body "Automated retrain triggered by detected drift (see the drift-monitor workflow run for the Evidently report). Promotion check passed - no F1/recall regression vs the current production model." \
+            --base main --head "$BRANCH"
+
+      - name: Note the non-improving retrain on the drift issue
+        if: steps.promote.outputs.promoted == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE=$(gh issue list --repo "${{ github.repository }}" --label model-drift --state open --json number --jq '.[0].number')
+          if [ -n "$ISSUE" ]; then
+            gh issue comment "$ISSUE" --repo "${{ github.repository }}" \
+              --body "Retrain attempted (run ${{ github.run_id }}) but did not improve on the current production model's F1/recall - no PR opened, nothing redeployed."
+          fi
