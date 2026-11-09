@@ -8,6 +8,10 @@ Drift monitoring for the deployed model, using Evidently.
 - `monitoring_job.py` - the actual CLI entrypoint the scheduled workflow runs: load data, check
   drift, write an HTML report artifact, alert if needed, exit non-zero on drift so the workflow
   can branch into the retrain trigger.
+- `normalize_mlflow_paths.py` - re-roots the absolute artifact paths stored in `mlflow.db` onto
+  the current project root. The retrain job runs it after pulling the registry from S3, because a
+  DB last written on another machine (a laptop's `/Users/...`) otherwise makes `train.py` fail with
+  `PermissionError`. See the modeling README's "Keeping the registry in sync with CI" section.
 - `reference_data.csv` - the training distribution's serving-relevant columns (`duration`, `day`,
   `month`, `housing`, `job` - the only fields the API ever sees, since `FeatureDropper` removes
   the rest before the model does). Regenerate with

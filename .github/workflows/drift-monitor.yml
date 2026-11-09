@@ -103,6 +103,12 @@ jobs:
           aws s3 cp "s3://${{ env.TFSTATE_BUCKET }}/${{ env.MLFLOW_SYNC_KEY }}" mlflow.db \
             || echo "No existing registry in S3 yet - starting fresh."
 
+      - name: Re-root MLflow artifact paths onto this runner
+        # The synced mlflow.db stores absolute artifact paths from whichever machine last wrote it
+        # (e.g. /Users/<name>/... from a laptop), which don't exist here - train.py's log_model
+        # would fail with PermissionError: '/Users'.
+        run: python app/monitoring/normalize_mlflow_paths.py mlflow.db
+
       - name: Rebuild processed training data
         run: python deposit_classification/dataset.py
 

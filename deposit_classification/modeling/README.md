@@ -95,6 +95,27 @@ aws s3 cp mlflow.db s3://term-deposit-classification-tfstate-934912969749/mlflow
 This is manual rather than baked into the scripts themselves, so they don't gain an AWS
 dependency just to run locally with no network access.
 
+### Machine-specific paths inside `mlflow.db`
+
+MLflow stores each experiment's, run's and logged model's artifact location as an **absolute path**
+(e.g. `/Users/<you>/.../mlruns/1` from a laptop, `/home/runner/work/.../mlruns/1` from CI). Because
+the same file is shared between machines, training on the "other" machine fails when MLflow tries
+to create directories under a path that doesn't exist there (`PermissionError: '/Users'`).
+
+`app/monitoring/normalize_mlflow_paths.py` re-roots those paths onto the current project root. The
+drift-monitor workflow runs it right after pulling the DB from S3. **If you pull the DB from S3 to
+train locally, run it too:**
+
+```bash
+aws s3 cp s3://term-deposit-classification-tfstate-934912969749/mlflow/mlflow.db mlflow.db
+python app/monitoring/normalize_mlflow_paths.py mlflow.db
+```
+
+It is idempotent and only rewrites local `.../mlruns/...` paths (not `s3://` or `models:/` URIs).
+Note that only `mlflow.db` is synced, not `mlruns/` - so models trained in CI exist as registry
+*metadata* on your machine, and loading one from the registry locally
+(`models:/term-deposit-classifier@production`) will fail unless its artifacts are also available.
+
 ## MLflow 3.x gotchas hit building this
 
 Both are already handled in this project's code - noted here so nobody "fixes" them back by accident,
