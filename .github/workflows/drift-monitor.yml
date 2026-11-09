@@ -143,7 +143,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          BRANCH="drift-retrain-${{ github.run_id }}"
+          # run_attempt keeps the name unique when a failed run is re-run (run_id stays the same,
+          # so a bare run_id collides with the branch the first attempt already pushed).
+          BRANCH="drift-retrain-${{ github.run_id }}-${{ github.run_attempt }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
