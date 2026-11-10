@@ -1,8 +1,8 @@
 This directory holds two unrelated things that happen to share a folder:
 
-- **`streamlit_demo/model_pipeline.joblib`** — a frozen model, committed to git, used only by
-  `streamlit_app.py`. Not touched by retraining; update it manually if you ever want the demo to
-  reflect a newer model.
+- **`streamlit_demo/model_pipeline.joblib`** — a legacy frozen model, committed to git. It is **no
+  longer used**: `streamlit_app.py` now calls the live prediction API for predictions and scores
+  its Model Performance tab with `app/models/model_pipeline_2.joblib`. Safe to delete.
 - **Everything else here** (`model_pipeline_2.joblib`, `latest_run_info.json`) — working output
   from the local training pipeline (`deposit_classification/modeling/`), gitignored, overwritten
   on every run. This is `deposit_classification/config.py`'s `MODELS_DIR` - the default place

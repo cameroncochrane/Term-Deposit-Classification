@@ -15,8 +15,8 @@ pip install -r requirements.txt
 
 ## Try The Demo App First
 
-`models/streamlit_demo/model_pipeline.joblib` is already trained and committed, so you can
-launch the interactive demo without running the pipeline at all:
+The demo's Try a Prediction tab calls the already-deployed prediction API, so you can launch
+it without training anything (it does need an internet connection):
 
 ```bash
 streamlit run streamlit_app.py
@@ -32,9 +32,8 @@ Place the source dataset at:
 
 `data/raw/term-deposit-marketing-2020.csv`
 
-This is only needed to reproduce the pipeline below, or to unlock the demo
-app's data-exploration and live model-performance tabs — the CSV is
-gitignored, so it isn't included in a fresh clone.
+This is needed to reproduce the pipeline below, and by the demo app's
+data-exploration and model-performance tabs (they show a message if it's missing).
 
 ## Run The Pipeline
 
@@ -54,7 +53,8 @@ python deposit_classification/modeling/predict.py
 - EDA plots in `reports/figures/` from `deposit_classification/plots.py`
 - Analysis tables printed to terminal from `deposit_classification/plots.py` and
 	`deposit_classification/features.py`
-- Trained model in `models/streamlit_demo/model_pipeline.joblib`
+- Trained model in `models/model_pipeline_2.joblib` (local output; the promoted model served by
+  the live API is `app/models/model_pipeline_2.joblib`)
 - Generated feature plots in `reports/figures/`
 
 ## Build Documentation

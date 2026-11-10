@@ -1,9 +1,12 @@
 # Streamlit showcase for the Term Deposit Classification project.
 
+import os
 from pathlib import Path
+import sys
 
-import pandas as pd
 import matplotlib.pyplot as plt
+import pandas as pd
+import requests
 import seaborn as sns
 import streamlit as st
 from joblib import load
@@ -26,26 +29,29 @@ from sklearn.model_selection import train_test_split
 # directory it's launched from.
 PROJ_ROOT = Path(__file__).resolve().parent
 RAW_DATA_PATH = PROJ_ROOT / "data" / "raw" / "term-deposit-marketing-2020.csv"
-MODEL_PATH = PROJ_ROOT / "models" / "streamlit_demo" / "model_pipeline.joblib"
 FIGURES_DIR = PROJ_ROOT / "reports" / "figures"
 GITHUB_URL = "https://github.com/cameroncochrane/Term-Deposit-Classification"
 
-RAW_COLUMNS = [
-    "age", "job", "marital", "education", "default", "balance",
-    "housing", "loan", "contact", "day", "month", "duration", "campaign",
-]
+# The deployed prediction API (see app/README.md). Override with the TERM_DEPOSIT_API_URL
+# environment variable, e.g. to point at a local `uvicorn api.main:app` while developing.
+DEFAULT_API_URL = "https://aalr9ksiel.execute-api.eu-west-2.amazonaws.com"
+API_URL = os.environ.get("TERM_DEPOSIT_API_URL", DEFAULT_API_URL).rstrip("/")
+# Generous because a Lambda that has gone cold can take a few seconds to answer.
+API_TIMEOUT_SECONDS = 30
 
-# Domain values for the Bank Marketing dataset schema, hardcoded so the
-# prediction form works even without the raw CSV present.
+# The repo's copy of the model the API serves. Only used by the Model Performance tab: scoring
+# thousands of test rows through the live API would be slow and would flood the prediction log
+# that the drift monitor reads. The Try a Prediction tab never touches this file.
+DEPLOYED_MODEL_PATH = PROJ_ROOT / "app" / "models" / "model_pipeline_2.joblib"
+
+# Valid inputs for the API's /predict endpoint. Mirrors app/api/schemas.py (PredictionInput) -
+# the model only ever sees these five fields. Note "unknown" jobs are rejected by the API.
 JOB_VALUES = [
     "admin", "blue-collar", "entrepreneur", "housemaid", "management",
     "retired", "self-employed", "services", "student", "technician",
-    "unemployed", "unknown",
+    "unemployed",
 ]
-MARITAL_VALUES = ["divorced", "married", "single"]
-EDUCATION_VALUES = ["primary", "secondary", "tertiary", "unknown"]
 YES_NO_VALUES = ["no", "yes"]
-CONTACT_VALUES = ["cellular", "telephone", "unknown"]
 MONTH_VALUES = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
 
 
@@ -56,9 +62,50 @@ st.set_page_config(
 )
 
 
-@st.cache_resource(show_spinner="Loading trained model...")
-def load_model():
-    return load(MODEL_PATH)
+class ApiError(Exception):
+    """A failure talking to the prediction API, with a message that's safe to show the user."""
+
+
+def _call_api(method: str, path: str, **kwargs) -> requests.Response:
+    try:
+        return requests.request(method, f"{API_URL}{path}", timeout=API_TIMEOUT_SECONDS, **kwargs)
+    except requests.Timeout:
+        raise ApiError(
+            f"No response from {API_URL} within {API_TIMEOUT_SECONDS}s. "
+            "A cold-started Lambda can be slow - try again."
+        ) from None
+    except requests.RequestException as exc:
+        raise ApiError(f"Could not reach {API_URL}: {exc}") from exc
+
+
+def check_api_health() -> float:
+    """Return the /health round-trip time in seconds, or raise ApiError."""
+    response = _call_api("GET", "/health")
+    if response.status_code != 200 or response.json().get("status") != "ok":
+        raise ApiError(f"/health returned HTTP {response.status_code}: {response.text[:200]}")
+    return response.elapsed.total_seconds()
+
+
+def predict_via_api(payload: dict) -> tuple[dict, float]:
+    """POST `payload` to /predict. Returns (response JSON, round-trip seconds) or raises ApiError."""
+    response = _call_api("POST", "/predict", json=payload)
+    if response.status_code == 422:
+        raise ApiError(f"The API rejected the input: {response.json().get('detail')}")
+    if response.status_code != 200:
+        raise ApiError(f"/predict returned HTTP {response.status_code}: {response.text[:200]}")
+    return response.json(), response.elapsed.total_seconds()
+
+
+@st.cache_resource(show_spinner="Loading the deployed model...")
+def load_deployed_model():
+    # The deployed pipeline was pickled against api.transformers (see app/api/service.py), so
+    # that module has to be importable before joblib can unpickle it.
+    app_dir = str(PROJ_ROOT / "app")
+    if app_dir not in sys.path:
+        sys.path.insert(0, app_dir)
+    import api.transformers  # noqa: F401
+
+    return load(DEPLOYED_MODEL_PATH)
 
 
 @st.cache_data(show_spinner="Loading raw dataset...")
@@ -108,7 +155,6 @@ def evaluate(model, X_test, y_test):
     return metrics, y_pred, y_proba
 
 
-model = load_model()
 raw_df = load_raw_data()
 
 st.title("Term Deposit Classification")
@@ -138,13 +184,21 @@ dataset of ~40,000 customer contacts with a **~7.2% positive class rate**.
    numeric features.
 3. **Feature engineering** — a `FeatureDropper` removes low-signal columns
    (`age`, `balance`, `campaign`, `default`, `loan`, `contact`, `education`,
-   `marital`), and a `CyclicalDateEncoder` converts `day`/`month` into
-   sine/cosine pairs.
+   `marital`), leaving just `duration`, `day`, `month`, `housing` and `job`,
+   and a `CyclicalDateEncoder` converts `day`/`month` into sine/cosine pairs.
 4. **Modeling** (`modeling/train.py`) — an imbalanced-learn pipeline
    (impute → scale/encode → `RandomOverSampler` → `XGBClassifier`), tuned via
    `RandomizedSearchCV` (540 iterations, 5-fold stratified CV, optimizing F1).
 5. **Evaluation** (`modeling/predict.py`) — accuracy, precision/recall, F1,
    MCC, ROC AUC, and log loss on the held-out test set.
+
+**Deployed system** (see `app/`):
+
+`Streamlit` → `API Gateway` → `Lambda (FastAPI + model)` → `S3 prediction log`
+→ daily `Evidently` drift check → retrain → pull request → CI deploy on merge.
+
+The **Try a Prediction** tab calls the live API rather than loading a model
+locally, so it always reflects whichever model is currently in production.
 
 Use the tabs above to explore the raw data, try a live prediction, or review
 the model's held-out performance.
@@ -165,7 +219,7 @@ with tab_explore:
         )
     else:
         st.subheader("Sample rows")
-        st.dataframe(raw_df.head(20), use_container_width=True)
+        st.dataframe(raw_df.head(20), width="stretch")
 
         col1, col2 = st.columns(2)
         with col1:
@@ -194,53 +248,77 @@ with tab_explore:
         for i, (filename, caption) in enumerate(figure_captions.items()):
             figure_path = FIGURES_DIR / filename
             if figure_path.exists():
-                cols[i % 2].image(str(figure_path), caption=caption, use_container_width=True)
+                cols[i % 2].image(str(figure_path), caption=caption, width="stretch")
 
 with tab_predict:
     st.header("Try a Prediction")
-    st.write("Fill in a customer profile and campaign contact details to get a live prediction.")
+    st.write(
+        "Enter the details of a contact and the app sends them to the **live prediction API**, "
+        "which scores them with whichever model is currently in production."
+    )
+    st.caption(
+        f"Endpoint: `{API_URL}`. The model only uses these five fields — the other columns in "
+        "the dataset were dropped during feature selection. Predictions made here are logged like "
+        "any other live request, so they feed the drift monitor."
+    )
+
+    if st.button("Check API status"):
+        with st.spinner("Contacting the API..."):
+            try:
+                latency = check_api_health()
+                st.success(f"API is healthy ({latency:.2f}s round trip).")
+            except ApiError as exc:
+                st.error(str(exc))
 
     with st.form("prediction_form"):
         col1, col2, col3 = st.columns(3)
         with col1:
-            age = st.slider("Age", 18, 95, 40)
             job = st.selectbox("Job", JOB_VALUES)
-            marital = st.selectbox("Marital status", MARITAL_VALUES)
-            education = st.selectbox("Education", EDUCATION_VALUES)
-        with col2:
-            default = st.radio("Has credit in default?", YES_NO_VALUES, horizontal=True)
-            balance = st.number_input("Average yearly balance (EUR)", value=500, step=100)
             housing = st.radio("Has housing loan?", YES_NO_VALUES, horizontal=True)
-            loan = st.radio("Has personal loan?", YES_NO_VALUES, horizontal=True)
-        with col3:
-            contact = st.selectbox("Contact communication type", CONTACT_VALUES)
-            day = st.slider("Last contact day of month", 1, 31, 15)
+        with col2:
             month = st.selectbox("Last contact month", MONTH_VALUES, index=4)
-            duration = st.number_input("Last contact duration (seconds)", min_value=0, value=180)
-            campaign = st.number_input("Number of contacts this campaign", min_value=1, value=2)
+            day = st.slider("Last contact day of month", 1, 31, 15)
+        with col3:
+            duration = st.number_input(
+                "Last contact duration (seconds)", min_value=0, value=180, step=10
+            )
 
         submitted = st.form_submit_button("Predict")
 
     if submitted:
-        input_row = pd.DataFrame([{
-            "age": age, "job": job, "marital": marital, "education": education,
-            "default": default, "balance": balance, "housing": housing, "loan": loan,
-            "contact": contact, "day": day, "month": month, "duration": duration,
-            "campaign": campaign,
-        }])[RAW_COLUMNS]
+        payload = {
+            "duration": int(duration),
+            "day": int(day),
+            "month": month,
+            "housing": housing,
+            "job": job,
+        }
 
-        probability = float(model.predict_proba(input_row)[0, 1])
-        prediction = "yes" if probability >= 0.5 else "no"
+        with st.spinner("Calling the prediction API..."):
+            try:
+                result, latency = predict_via_api(payload)
+            except ApiError as exc:
+                st.error(str(exc))
+                result = None
 
-        result_col, gauge_col = st.columns(2)
-        with result_col:
-            if prediction == "yes":
-                st.success(f"Predicted outcome: **subscribes** (probability {probability:.1%})")
-            else:
-                st.error(f"Predicted outcome: **does not subscribe** (probability {probability:.1%})")
-        with gauge_col:
-            st.metric("Predicted subscription probability", f"{probability:.1%}")
-            st.progress(min(max(probability, 0.0), 1.0))
+        if result is not None:
+            probability = float(result["probability"])
+
+            result_col, gauge_col = st.columns(2)
+            with result_col:
+                if result["prediction"] == 1:
+                    st.success(f"Predicted outcome: **subscribes** (probability {probability:.1%})")
+                else:
+                    st.error(
+                        f"Predicted outcome: **does not subscribe** (probability {probability:.1%})"
+                    )
+            with gauge_col:
+                st.metric("Predicted subscription probability", f"{probability:.1%}")
+                st.progress(min(max(probability, 0.0), 1.0))
+
+            with st.expander(f"Request and response ({latency:.2f}s round trip)"):
+                st.write(f"`POST {API_URL}/predict`")
+                st.json({"request": payload, "response": result})
 
 with tab_performance:
     st.header("Model Performance (Held-Out Test Set)")
@@ -249,9 +327,21 @@ with tab_performance:
             f"Raw dataset not found at `{RAW_DATA_PATH.relative_to(PROJ_ROOT)}`. "
             "Add the CSV there to enable this view."
         )
+    elif not DEPLOYED_MODEL_PATH.exists():
+        st.warning(
+            f"Deployed model not found at `{DEPLOYED_MODEL_PATH.relative_to(PROJ_ROOT)}`."
+        )
     else:
+        model = load_deployed_model()
         X_test, y_test = build_eval_split(raw_df)
         metrics, y_pred, y_proba = evaluate(model, X_test, y_test)
+
+        st.caption(
+            "Scored locally with the repo's copy of the deployed model "
+            f"(`{DEPLOYED_MODEL_PATH.relative_to(PROJ_ROOT)}`) rather than through the live API - "
+            "that would mean thousands of requests and a flooded prediction log. "
+            "Pull `main` after merging a retrain PR to keep this in step with production."
+        )
 
         metric_cols = st.columns(4)
         for i, (name, value) in enumerate(metrics.items()):
